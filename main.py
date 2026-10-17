@@ -1,21 +1,8 @@
-import os
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
-from transformers import MarianMTModel, MarianTokenizer
-import torch
+from deep_translator import GoogleTranslator
 
-app = FastAPI(title="EN-VI Translate API (CPU)")
-
-_models = {}
-
-def get_model(direction: str):
-    if direction not in _models:
-        name = "Helsinki-NLP/opus-mt-en-vi" if direction == "en-vi" else "Helsinki-NLP/opus-mt-vi-en"
-        tok = MarianTokenizer.from_pretrained(name)
-        model = MarianMTModel.from_pretrained(name)
-        model.eval()
-        _models[direction] = (tok, model)
-    return _models[direction]
+app = FastAPI(title="EN-VI Translate API")
 
 class Body(BaseModel):
     text: str
@@ -38,11 +25,10 @@ def translate(body: Body):
     if direction not in ("en-vi", "vi-en"):
         raise HTTPException(400, "direction phải là en-vi hoặc vi-en")
     try:
-        tok, model = get_model(direction)
-        inputs = tok(text, return_tensors="pt", truncation=True, padding=True, max_length=512)
-        with torch.no_grad():
-            out = model.generate(**inputs, max_length=512, num_beams=2)
-        result = tok.decode(out[0], skip_special_tokens=True)
-        return {"text": text, "direction": direction, "result": result}
+        if direction == "en-vi":
+            result = GoogleTranslator(source="en", target="vi").translate(text)
+        else:
+            result = GoogleTranslator(source="vi", target="en").translate(text)
+        return {"text": text, "direction": direction, "result": result, "engine": "google"}
     except Exception as e:
         raise HTTPException(500, f"Lỗi dịch: {e}")
